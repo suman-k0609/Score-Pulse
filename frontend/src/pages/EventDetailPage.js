@@ -641,3 +641,113 @@ const EventDetailPage = () => {
   <h3 className="text-xl font-bold text-white mb-4">
     Event Timeline
   </h3>
+
+  {event.eventHistory && event.eventHistory.length > 0 ? (
+    <div className="space-y-4 max-h-96 overflow-y-auto">
+      {[...event.eventHistory].reverse().map((item, index) => (
+        <div
+          key={index}
+          className="bg-slate-600 bg-opacity-30 border border-slate-600 rounded-lg p-4 hover:border-blue-500 transition"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <span className="inline-block w-2 h-2 bg-blue-400 rounded-full"></span>
+              <span className="font-semibold text-white">
+                {item.action}
+              </span>
+            </div>
+
+            <span className="text-xs text-slate-500">
+              {new Date(item.timestamp).toLocaleTimeString()}
+            </span>
+          </div>
+
+          <p className="text-slate-300 ml-4">
+            <span className="text-blue-400 font-semibold">
+              {item.team}
+            </span>
+            {item.details && ` - ${item.details}`}
+          </p>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="text-slate-400 text-center py-8">
+      No events recorded yet
+    </p>
+  )}
+</div>
+</div>
+
+{/* Sidebar - Event Stats */}
+<div className="lg:col-span-1">
+  <div className="bg-slate-700 bg-opacity-50 backdrop-blur-sm border border-slate-600 rounded-2xl p-6 sticky top-20">
+    <h3 className="text-xl font-bold text-white mb-6">
+      Event Details
+    </h3>
+
+    <div className="space-y-6">
+      {/* Status */}
+      <div>
+        <p className="text-sm text-slate-500 mb-2">Status</p>
+
+        <div
+          className={`${getStatusBadgeColor(
+            event.status
+          )} text-white px-3 py-1 rounded-full text-sm font-semibold w-fit`}
+        >
+          {event.status.charAt(0).toUpperCase() +
+            event.status.slice(1)}
+        </div>
+      </div>
+
+      {/* Sport */}
+      <div>
+        <p className="text-sm text-slate-500 mb-2">Sport</p>
+
+        <p className="text-white font-semibold">
+          {event.sport.charAt(0).toUpperCase() +
+            event.sport.slice(1)}
+        </p>
+      </div>
+
+      {/* Created By */}
+      <div>
+        <p className="text-sm text-slate-500 mb-2">Created By</p>
+
+        <p className="text-white font-semibold">
+          {event.createdBy?.userName || 'Admin'}
+        </p>
+      </div>
+
+      {/* Updated At */}
+      <div>
+        <p className="text-sm text-slate-500 mb-2">
+          Last Updated
+        </p>
+
+        <p className="text-white text-sm">
+          {new Date(event.updatedAt).toLocaleString()}
+        </p>
+      </div>
+
+      {/* Followers */}
+      <div className="border-t border-slate-600 pt-6">
+        <div className="flex items-center space-x-2">
+          <FiUsers className="text-blue-400" size={20} />
+          <span className="text-white font-bold">
+            {event.followersCount} followers
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</div>
+);
+};
+
+export default EventDetailPage;
