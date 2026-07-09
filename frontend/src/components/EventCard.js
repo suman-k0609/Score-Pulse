@@ -1,4 +1,50 @@
-import React, { useState, useEffect } from 'react';
+// import React, { useState, useEffect } from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import { FiHeart, FiUsers } from 'react-icons/fi';
+// import { toast } from 'react-toastify';
+// import { eventAPI } from '../services/api';
+
+// const EventCard = ({ event, onFollowChange }) => {
+//   const navigate = useNavigate();
+//   const [isFollowing, setIsFollowing] = useState(false);
+//   const [loading, setLoading] = useState(false);
+
+//   useEffect(() => {
+//     checkFollowStatus();
+//   }, [event._id]);
+
+//   const checkFollowStatus = async () => {
+//     try {
+//       const response = await eventAPI.isFollowingEvent(event._id);
+//       setIsFollowing(response.data.isFollowing);
+//     } catch (error) {
+//       console.error('Error checking follow status:', error);
+//     }
+//   };
+
+//   const handleFollowToggle = async (e) => {
+//     e.stopPropagation();
+//     setLoading(true);
+
+//     try {
+//       if (isFollowing) {
+//         await eventAPI.unfollowEvent(event._id);
+//         setIsFollowing(false);
+//         toast.success('Event unfollowed');
+//       } else {
+//         await eventAPI.followEvent(event._id);
+//         setIsFollowing(true);
+//         toast.success('Event followed!');
+//       }
+//       onFollowChange?.();
+//     } catch (error) {
+//       const errorMessage = error.response?.data?.error || 'Action failed';
+//       toast.error(errorMessage);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiHeart, FiUsers } from 'react-icons/fi';
 import { toast } from 'react-toastify';
@@ -9,18 +55,18 @@ const EventCard = ({ event, onFollowChange }) => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    checkFollowStatus();
-  }, [event._id]);
-
-  const checkFollowStatus = async () => {
+  const checkFollowStatus = useCallback(async () => {
     try {
       const response = await eventAPI.isFollowingEvent(event._id);
       setIsFollowing(response.data.isFollowing);
     } catch (error) {
       console.error('Error checking follow status:', error);
     }
-  };
+  }, [event._id]);
+
+  useEffect(() => {
+    checkFollowStatus();
+  }, [checkFollowStatus]);
 
   const handleFollowToggle = async (e) => {
     e.stopPropagation();
@@ -36,6 +82,7 @@ const EventCard = ({ event, onFollowChange }) => {
         setIsFollowing(true);
         toast.success('Event followed!');
       }
+
       onFollowChange?.();
     } catch (error) {
       const errorMessage = error.response?.data?.error || 'Action failed';
@@ -44,7 +91,6 @@ const EventCard = ({ event, onFollowChange }) => {
       setLoading(false);
     }
   };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'live':
