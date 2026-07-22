@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { FiArrowLeft, FiHeart, FiUsers, FiMapPin, FiClock, FiActivity, FiUser } from 'react-icons/fi';
+import { FiArrowLeft, FiHeart, FiUsers, FiMapPin, FiClock, FiActivity } from 'react-icons/fi';
 import Navbar from '../components/Navbar';
 import { eventAPI } from '../services/api';
 import {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiHeart, FiUsers, FiMapPin, FiClock, FiChevronRight } from 'react-icons/fi';
+import { FiHeart, FiUsers, FiMapPin, FiClock } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { eventAPI } from '../services/api';
 
