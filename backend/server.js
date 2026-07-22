@@ -19,19 +19,20 @@ const { startLiveSync } = require('./services/liveSync.js');
 
 const app = express();
 const server = http.createServer(app);
+const corsOptions = {
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+};
+
 const io = socketIo(server, {
-    cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
-        credentials: true
-    }
+    cors: corsOptions
 });
 
 app.use(express.json()); 
 
-app.use(cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    credentials: true
-}));
+app.use(cors(corsOptions));
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URL = process.env.MONGO_URL; 
