@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar';
 import EventCard from '../components/EventCard';
 import { eventAPI } from '../services/api';
 import { initSocket, onNewEvent, removeNewEventListener } from '../services/socket';
-import { FiActivity, FiFilter, FiRefreshCw, FiCheckCircle } from 'react-icons/fi';
+import { FiActivity } from 'react-icons/fi';
 
 const Dashboard = () => {
   const [events, setEvents] = useState([]);

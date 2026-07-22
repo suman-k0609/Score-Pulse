@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
-import { searchAPI, standingsAPI } from '../services/api';
-import { FiAward, FiTrendingUp, FiActivity, FiShield, FiCheckCircle } from 'react-icons/fi';
+import { standingsAPI } from '../services/api';
+import { FiAward } from 'react-icons/fi';
 
 export default function StandingsPage() {
     const [standingsData, setStandingsData] = useState([]);

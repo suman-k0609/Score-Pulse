@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiMessageSquare, FiX, FiSend, FiZap, FiTrash2, FiActivity } from 'react-icons/fi';
+import { FiX, FiSend, FiZap, FiTrash2, FiActivity } from 'react-icons/fi';
 import axios from 'axios';
 
 const SportsBot = () => {
