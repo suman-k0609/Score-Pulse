@@ -9,6 +9,7 @@ router.get('/', async (req, res) => {
             search = '', 
             sport = '', 
             status = '', 
+            team = '',
             sort = '-startTime',
             page = 1,
             limit = 10
@@ -32,6 +33,17 @@ router.get('/', async (req, res) => {
 
         // Filter by status (upcoming, live, completed)
         if (status) query.status = status;
+
+        // Filter by specific team name
+        if (team) {
+            query.$and = query.$and || [];
+            query.$and.push({
+                $or: [
+                    { 'team1.name': team },
+                    { 'team2.name': team }
+                ]
+            });
+        }
 
         // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -72,24 +84,13 @@ router.get('/sports/all', async (req, res) => {
 // Get unique teams
 router.get('/teams/all', async (req, res) => {
     try {
-        const teams = await Event.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    teams: { $addToSet: '$team1.name' }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    teams: 1
-                }
-            }
-        ]);
+        const teams1 = await Event.distinct('team1.name');
+        const teams2 = await Event.distinct('team2.name');
+        const allTeams = Array.from(new Set([...teams1, ...teams2])).filter(Boolean).sort();
         
         res.json({ 
             success: true, 
-            teams: teams[0]?.teams || [] 
+            teams: allTeams 
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

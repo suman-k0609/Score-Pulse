@@ -15,13 +15,16 @@ import SearchPage from './pages/SearchPage';
 import StandingsPage from './pages/StandingsPage';
 import NotFound from './pages/NotFound';
 
+// Components
+import SportsBot from './components/SportsBot';
+
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-linear-to-br from-slate-900 to-slate-800">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800">
         <div className="animate-spin">
           <div className="w-12 h-12 border-4 border-blue-500 rounded-full border-t-transparent"></div>
         </div>
@@ -43,7 +46,7 @@ const AppContent = () => {
   }, [isAuthenticated]);
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 relative">
       <Routes>
         <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
         <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" /> : <SignupPage />} />
@@ -87,6 +90,9 @@ const AppContent = () => {
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      {/* Floating AI Sports Assistant Bot */}
+      {isAuthenticated && <SportsBot />}
 
       <ToastContainer
         position="bottom-right"

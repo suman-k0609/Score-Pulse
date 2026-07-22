@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import Navbar from '../components/Navbar';
 import EventCard from '../components/EventCard';
+import { searchAPI } from '../services/api';
+import { FiSearch, FiFilter, FiX } from 'react-icons/fi';
 
 export default function SearchPage() {
     const [events, setEvents] = useState([]);
@@ -16,45 +18,48 @@ export default function SearchPage() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
 
-    useEffect(() => {
-        fetchFiltersData();
-        searchEvents();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedSport, selectedStatus, page]);
-
     const fetchFiltersData = async () => {
         try {
             const [sportsRes, teamsRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/search/sports/all'),
-                axios.get('http://localhost:5000/api/search/teams/all')
+                searchAPI.getAllSports(),
+                searchAPI.getAllTeams()
             ]);
-            setSports(sportsRes.data.sports);
-            setTeams(teamsRes.data.teams);
+            setSports(sportsRes.data.sports || []);
+            setTeams(teamsRes.data.teams || []);
         } catch (err) {
             console.error('Error fetching filters:', err);
         }
     };
 
-    const searchEvents = async () => {
+    const searchEvents = useCallback(async () => {
         try {
             setLoading(true);
             const params = {
                 search: search || undefined,
                 sport: selectedSport || undefined,
                 status: selectedStatus || undefined,
+                team: selectedTeam || undefined,
                 page,
                 limit: 12
             };
 
-            const response = await axios.get('http://localhost:5000/api/search', { params });
-            setEvents(response.data.data);
-            setTotalPages(response.data.pagination.pages);
+            const response = await searchAPI.searchEvents(params);
+            setEvents(response.data.data || []);
+            setTotalPages(response.data.pagination?.pages || 1);
         } catch (err) {
             console.error('Error searching events:', err);
         } finally {
             setLoading(false);
         }
-    };
+    }, [search, selectedSport, selectedStatus, selectedTeam, page]);
+
+    useEffect(() => {
+        fetchFiltersData();
+    }, []);
+
+    useEffect(() => {
+        searchEvents();
+    }, [selectedSport, selectedStatus, selectedTeam, page, searchEvents]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -71,45 +76,56 @@ export default function SearchPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black p-4">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <h1 className="text-4xl font-bold text-white mb-8">🔍 Search Events</h1>
+        <div className="min-h-screen bg-gray-950 text-gray-100 bg-ambient-glow">
+            <Navbar />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header Banner */}
+                <div className="mb-8 p-6 sm:p-8 rounded-3xl glass-card border border-gray-800 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                {/* Search Bar */}
-                <form onSubmit={handleSearch} className="mb-8">
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            placeholder="Search teams, events, venues..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="flex-1 px-4 py-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-orange-500 focus:outline-none"
-                        />
-                        <button
-                            type="submit"
-                            className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-semibold hover:shadow-lg transition"
-                        >
-                            Search
-                        </button>
+                    <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-2 flex items-center space-x-3">
+                        <span>Search & Discover Matches</span>
+                        <span className="text-cyan-400">🔍</span>
+                    </h1>
+                    <p className="text-sm text-gray-400 max-w-xl mb-6">
+                        Filter live games by sport, status, team name, or venue location.
+                    </p>
+
+                    {/* Search Input Bar */}
+                    <form onSubmit={handleSearch} className="relative max-w-3xl">
+                        <div className="relative flex items-center">
+                            <FiSearch className="absolute left-4 text-gray-400 w-5 h-5" />
+                            <input
+                                type="text"
+                                placeholder="Search teams, tournaments, venues..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full pl-12 pr-32 py-3.5 rounded-2xl bg-gray-900/90 text-white placeholder-gray-500 border border-gray-800 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-sm transition font-medium"
+                            />
+                            <button
+                                type="submit"
+                                className="absolute right-2 px-5 py-2 bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-400 hover:to-sky-400 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-500/20 transition"
+                            >
+                                Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                {/* Filter Controls Grid */}
+                <div className="glass-card rounded-3xl p-6 border border-gray-800 mb-8">
+                    <div className="flex items-center space-x-2 mb-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        <FiFilter className="w-4 h-4 text-cyan-400" />
+                        <span>Filter Options</span>
                     </div>
-                </form>
-
-                {/* Filters */}
-                <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700 mb-8">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         {/* Sport Filter */}
                         <div>
-                            <label className="block text-gray-300 font-semibold mb-2">
-                                Sport
-                            </label>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Sport</label>
                             <select
                                 value={selectedSport}
-                                onChange={(e) => {
-                                    setSelectedSport(e.target.value);
-                                    setPage(1);
-                                }}
-                                className="w-full px-3 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-orange-500"
+                                onChange={(e) => { setSelectedSport(e.target.value); setPage(1); }}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none"
                             >
                                 <option value="">All Sports</option>
                                 {sports.map((sport) => (
@@ -122,64 +138,60 @@ export default function SearchPage() {
 
                         {/* Status Filter */}
                         <div>
-                            <label className="block text-gray-300 font-semibold mb-2">
-                                Status
-                            </label>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Status</label>
                             <select
                                 value={selectedStatus}
-                                onChange={(e) => {
-                                    setSelectedStatus(e.target.value);
-                                    setPage(1);
-                                }}
-                                className="w-full px-3 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-orange-500"
+                                onChange={(e) => { setSelectedStatus(e.target.value); setPage(1); }}
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none"
                             >
-                                <option value="">All Status</option>
+                                <option value="">All Statuses</option>
+                                <option value="live">Live Matches</option>
                                 <option value="upcoming">Upcoming</option>
-                                <option value="live">Live</option>
                                 <option value="completed">Completed</option>
                             </select>
                         </div>
 
                         {/* Team Filter */}
                         <div>
-                            <label className="block text-gray-300 font-semibold mb-2">
-                                Team
-                            </label>
+                            <label className="block text-xs font-semibold text-gray-400 mb-1.5">Team</label>
                             <select
                                 value={selectedTeam}
                                 onChange={(e) => setSelectedTeam(e.target.value)}
-                                className="w-full px-3 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-orange-500"
+                                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-900 border border-gray-800 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none"
                             >
                                 <option value="">All Teams</option>
-                                {teams.map((team) => (
-                                    <option key={team} value={team}>
-                                        {team}
-                                    </option>
+                                {teams.map((t) => (
+                                    <option key={t} value={t}>{t}</option>
                                 ))}
                             </select>
                         </div>
 
-                        {/* Clear Button */}
+                        {/* Clear Action */}
                         <div className="flex items-end">
                             <button
                                 onClick={clearFilters}
-                                className="w-full px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition font-semibold"
+                                className="w-full px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-gray-300 border border-gray-800 rounded-xl transition text-xs font-bold flex items-center justify-center space-x-1.5"
                             >
-                                Clear Filters
+                                <FiX className="w-4 h-4 text-rose-400" />
+                                <span>Reset Filters</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                {/* Results */}
+                {/* Results Grid */}
                 {loading ? (
-                    <div className="text-center py-12">
-                        <div className="inline-block animate-spin text-4xl">⚙️</div>
-                        <p className="text-gray-400 mt-4">Searching events...</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                            <div key={i} className="glass-card rounded-3xl p-6 h-56 animate-pulse">
+                                <div className="h-4 bg-gray-800 rounded w-1/3 mb-4"></div>
+                                <div className="h-16 bg-gray-800/80 rounded-2xl mb-4"></div>
+                            </div>
+                        ))}
                     </div>
                 ) : events.length === 0 ? (
-                    <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-12 text-center">
-                        <p className="text-gray-400 text-lg">No events found. Try adjusting your filters.</p>
+                    <div className="glass-card rounded-3xl p-12 text-center border border-gray-800 max-w-lg mx-auto">
+                        <p className="text-gray-400 text-sm font-medium">No matching events found. Try adjusting your query or filters.</p>
                     </div>
                 ) : (
                     <>
@@ -191,11 +203,11 @@ export default function SearchPage() {
 
                         {/* Pagination */}
                         {totalPages > 1 && (
-                            <div className="flex justify-center gap-2 mt-8">
+                            <div className="flex justify-center items-center gap-2 mt-8">
                                 <button
                                     onClick={() => setPage(Math.max(1, page - 1))}
                                     disabled={page === 1}
-                                    className="px-4 py-2 bg-gray-700 text-white rounded-lg disabled:opacity-50"
+                                    className="px-4 py-2 bg-gray-900 border border-gray-800 text-xs font-bold text-gray-300 rounded-xl disabled:opacity-50 hover:bg-gray-800"
                                 >
                                     Previous
                                 </button>
@@ -203,10 +215,10 @@ export default function SearchPage() {
                                     <button
                                         key={p}
                                         onClick={() => setPage(p)}
-                                        className={`px-4 py-2 rounded-lg ${
+                                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
                                             p === page
-                                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                                ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/20'
+                                                : 'bg-gray-900 text-gray-400 border border-gray-800 hover:text-white'
                                         }`}
                                     >
                                         {p}
@@ -215,7 +227,7 @@ export default function SearchPage() {
                                 <button
                                     onClick={() => setPage(Math.min(totalPages, page + 1))}
                                     disabled={page === totalPages}
-                                    className="px-4 py-2 bg-gray-700 text-white rounded-lg disabled:opacity-50"
+                                    className="px-4 py-2 bg-gray-900 border border-gray-800 text-xs font-bold text-gray-300 rounded-xl disabled:opacity-50 hover:bg-gray-800"
                                 >
                                     Next
                                 </button>

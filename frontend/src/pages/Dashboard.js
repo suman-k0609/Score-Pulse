@@ -1,248 +1,10 @@
-// import React, { useState, useEffect } from 'react';
-// import { toast } from 'react-toastify';
-// import Navbar from '../components/Navbar';
-// import EventCard from '../components/EventCard';
-// import { eventAPI } from '../services/api';
-// import { initSocket, onNewEvent, removeNewEventListener } from '../services/socket';
-
-// const Dashboard = () => {
-//   const [events, setEvents] = useState([]);
-//   const [followedEvents, setFollowedEvents] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [activeTab, setActiveTab] = useState('all');
-//   const [sportFilter, setSportFilter] = useState('');
-//   const [statusFilter, setStatusFilter] = useState('');
-
-//   const sports = ['cricket', 'basketball', 'football', 'tennis'];
-//   const statuses = ['upcoming', 'live', 'completed'];
-
-//   useEffect(() => {
-//     console.log('🚀 Dashboard mounted, initializing...');
-//     initSocket();
-    
-//     // Fetch events immediately
-//     (async () => {
-//       try {
-//         setLoading(true);
-//         const response = await eventAPI.getAllEvents({});
-//         console.log('✅ Initial events loaded:', response.data.events?.length || 0);
-//         setEvents(response.data.events || []);
-//       } catch (error) {
-//         console.error('❌ Failed to load initial events:', error);
-//         setEvents([]);
-//       } finally {
-//         setLoading(false);
-//       }
-//     })();
-
-//     // Fetch followed events
-//     (async () => {
-//       try {
-//         const response = await eventAPI.getUserFollowedEvents();
-//         setFollowedEvents(response.data.events || []);
-//       } catch (error) {
-//         console.error('Failed to load followed events:', error);
-//         setFollowedEvents([]);
-//       }
-//     })();
-
-//     // Listen for new events
-//     const handleNewEvent = (newEvent) => {
-//       setEvents(prev => [newEvent, ...prev]);
-//       if (activeTab === 'all') {
-//         toast.info(`New event: ${newEvent.eventName}`);
-//       }
-//     };
-
-//     onNewEvent(handleNewEvent);
-
-//     return () => {
-//       removeNewEventListener();
-//     };
-//   }, []);
-
-//   // Apply filters when they change
-//   useEffect(() => {
-//     if (sportFilter || statusFilter) {
-//       handleFilterChange();
-//     }
-//   }, [sportFilter, statusFilter]);
-
-//   const fetchEvents = async () => {
-//     try {
-//       setLoading(true);
-//       const filters = {};
-//       if (sportFilter) filters.sport = sportFilter;
-//       if (statusFilter) filters.status = statusFilter;
-
-//       console.log('📡 Fetching events with filters:', filters);
-//       const response = await eventAPI.getAllEvents(filters);
-//       console.log('✅ Received events:', response.data.events?.length || 0);
-//       setEvents(response.data.events || []);
-//     } catch (error) {
-//       console.error('❌ Error fetching events:', error);
-//       toast.error('Failed to fetch events');
-//       setEvents([]);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const fetchFollowedEvents = async () => {
-//     try {
-//       const response = await eventAPI.getUserFollowedEvents();
-//       setFollowedEvents(response.data.events);
-//     } catch (error) {
-//       console.error('Error fetching followed events:', error);
-//     }
-//   };
-
-//   const handleFilterChange = () => {
-//     console.log('🔄 Applying filters - Sport:', sportFilter, 'Status:', statusFilter);
-//     fetchEvents();
-//   };
-
-//   const handleFollowChange = () => {
-//     fetchFollowedEvents();
-//   };
-
-//   const displayedEvents = activeTab === 'followed' ? followedEvents : events;
-
-//   return (
-//     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-//       <Navbar />
-
-//       {/* Main Content */}
-//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-//         {/* Header */}
-//         <div className="mb-8">
-//           <h2 className="text-3xl sm:text-4xl font-bold mb-2">
-//             <span className="gradient-text">Live Events</span>
-//           </h2>
-//           <p className="text-slate-400">Follow your favorite sports and stay updated</p>
-//         </div>
-
-//         {/* Tabs */}
-//         <div className="flex space-x-4 mb-8 border-b border-slate-700 pb-4">
-//           <button
-//             onClick={() => setActiveTab('all')}
-//             className={`px-6 py-2 font-semibold transition ${
-//               activeTab === 'all'
-//                 ? 'text-blue-400 border-b-2 border-blue-400'
-//                 : 'text-slate-400 hover:text-white'
-//             }`}
-//           >
-//             All Events ({events.length})
-//           </button>
-//           <button
-//             onClick={() => setActiveTab('followed')}
-//             className={`px-6 py-2 font-semibold transition ${
-//               activeTab === 'followed'
-//                 ? 'text-blue-400 border-b-2 border-blue-400'
-//                 : 'text-slate-400 hover:text-white'
-//             }`}
-//           >
-//             Following ({followedEvents.length})
-//           </button>
-//         </div>
-
-//         {/* Filters */}
-//         {activeTab === 'all' && (
-//           <div className="mb-8 flex flex-wrap gap-4 bg-slate-700 bg-opacity-30 p-4 rounded-lg">
-//             {/* Sport Filter */}
-//             <div className="flex-1 min-w-48">
-//               <label className="block text-sm font-medium text-slate-300 mb-2">Sport</label>
-//               <select
-//                 value={sportFilter}
-//                 onChange={(e) => setSportFilter(e.target.value)}
-//                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
-//               >
-//                 <option value="">All Sports</option>
-//                 {sports.map(sport => (
-//                   <option key={sport} value={sport}>
-//                     {sport.charAt(0).toUpperCase() + sport.slice(1)}
-//                   </option>
-//                 ))}
-//               </select>
-//             </div>
-
-//             {/* Status Filter */}
-//             <div className="flex-1 min-w-48">
-//               <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
-//               <select
-//                 value={statusFilter}
-//                 onChange={(e) => setStatusFilter(e.target.value)}
-//                 className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
-//               >
-//                 <option value="">All Status</option>
-//                 {statuses.map(status => (
-//                   <option key={status} value={status}>
-//                     {status.charAt(0).toUpperCase() + status.slice(1)}
-//                   </option>
-//                 ))}
-//               </select>
-//             </div>
-
-//             {/* Clear Filters */}
-//             {(sportFilter || statusFilter) && (
-//               <div className="flex items-end">
-//                 <button
-//                   onClick={() => {
-//                     setSportFilter('');
-//                     setStatusFilter('');
-//                     setTimeout(handleFilterChange, 0);
-//                   }}
-//                   className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg transition"
-//                 >
-//                   Clear Filters
-//                 </button>
-//               </div>
-//             )}
-//           </div>
-//         )}
-
-//         {/* Events Grid */}
-//         {loading ? (
-//           <div className="flex items-center justify-center py-16">
-//             <div className="animate-spin">
-//               <div className="h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent"></div>
-//             </div>
-//           </div>
-//         ) : displayedEvents.length > 0 ? (
-//           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-//             {displayedEvents.map(event => (
-//               <EventCard
-//                 key={event._id}
-//                 event={event}
-//                 onFollowChange={handleFollowChange}
-//               />
-//             ))}
-//           </div>
-//         ) : (
-//           <div className="text-center py-16">
-//             <p className="text-2xl font-bold text-slate-400 mb-2">
-//               {activeTab === 'followed' ? 'No followed events' : 'No events found'}
-//             </p>
-//             <p className="text-slate-500">
-//               {activeTab === 'followed'
-//                 ? 'Start following events to see them here'
-//                 : 'Check back later for upcoming events'}
-//             </p>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Dashboard;
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import Navbar from '../components/Navbar';
 import EventCard from '../components/EventCard';
 import { eventAPI } from '../services/api';
 import { initSocket, onNewEvent, removeNewEventListener } from '../services/socket';
+import { FiActivity, FiFilter, FiRefreshCw, FiCheckCircle } from 'react-icons/fi';
 
 const Dashboard = () => {
   const [events, setEvents] = useState([]);
@@ -252,8 +14,15 @@ const Dashboard = () => {
   const [sportFilter, setSportFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const sports = ['cricket', 'basketball', 'football', 'tennis'];
-  const statuses = ['upcoming', 'live', 'completed'];
+  const sports = ['football', 'basketball', 'cricket', 'tennis'];
+  const statuses = ['live', 'upcoming', 'completed'];
+
+  const sportIcons = {
+    football: '⚽',
+    basketball: '🏀',
+    cricket: '🏏',
+    tennis: '🎾'
+  };
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -285,13 +54,11 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    console.log('🚀 Dashboard mounted, initializing...');
     initSocket();
 
     (async () => {
       try {
         setLoading(true);
-
         const response = await eventAPI.getAllEvents({});
         setEvents(response.data.events || []);
       } catch (error) {
@@ -302,9 +69,8 @@ const Dashboard = () => {
       }
     })();
 
-                fetchFollowedEvents();
+    fetchFollowedEvents();
 
-    // Listen for new events
     const handleNewEvent = (newEvent) => {
       setEvents((prev) => [newEvent, ...prev]);
 
@@ -320,130 +86,150 @@ const Dashboard = () => {
     };
   }, [activeTab, fetchFollowedEvents]);
 
-  const handleFilterChange = useCallback(() => {
-    fetchEvents();
-  }, [fetchEvents]);
-
-  // Apply filters when they change
   useEffect(() => {
-    if (sportFilter || statusFilter) {
-      handleFilterChange();
-    }
-  }, [sportFilter, statusFilter, handleFilterChange]);
+    fetchEvents();
+  }, [sportFilter, statusFilter, fetchEvents]);
 
-    const handleFollowChange = () => {
+  const handleFollowChange = () => {
     fetchFollowedEvents();
   };
 
-  const displayedEvents =
-    activeTab === 'followed' ? followedEvents : events;
+  const displayedEvents = activeTab === 'followed' ? followedEvents : events;
+
+  // Calculate live stats
+  const liveCount = events.filter(e => e.status === 'live').length;
+  const upcomingCount = events.filter(e => e.status === 'upcoming').length;
+  const completedCount = events.filter(e => e.status === 'completed').length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
+    <div className="min-h-screen bg-gray-950 text-gray-100 bg-ambient-glow">
       <Navbar />
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-2">
-            <span className="gradient-text">Live Events</span>
-          </h2>
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
+        {/* Hero Section */}
+        <div className="mb-8 p-6 sm:p-8 rounded-3xl glass-card border border-gray-800 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-          <p className="text-slate-400">
-            Follow your favorite sports and stay updated
-          </p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-4 mb-8 border-b border-slate-700 pb-4">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-6 py-2 font-semibold transition ${
-              activeTab === 'all'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            All Events ({events.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('followed')}
-            className={`px-6 py-2 font-semibold transition ${
-              activeTab === 'followed'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Following ({followedEvents.length})
-          </button>
-        </div>
-
-
-        {/* Filters */}
-        {activeTab === 'all' && (
-          <div className="mb-8 flex flex-wrap gap-4 bg-slate-700 bg-opacity-30 p-4 rounded-lg">
-            {/* Sport Filter */}
-            <div className="flex-1 min-w-48">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Sport</label>
-              <select
-                value={sportFilter}
-                onChange={(e) => setSportFilter(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
-              >
-                <option value="">All Sports</option>
-                {sports.map(sport => (
-                  <option key={sport} value={sport}>
-                    {sport.charAt(0).toUpperCase() + sport.slice(1)}
-                  </option>
-                ))}
-              </select>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold mb-3">
+                <FiActivity className="w-3.5 h-3.5 animate-pulse" />
+                <span>Live Real-Time Feeds Connected</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+                Live Sports Scoreboard <span className="text-cyan-400">⚡</span>
+              </h1>
+              <p className="text-sm text-gray-400 mt-2 max-w-xl">
+                Stay updated with real-time scores, match schedules, live updates, and team statistics across Football, Basketball, Tennis & Cricket.
+              </p>
             </div>
 
-            {/* Status Filter */}
-            <div className="flex-1 min-w-48">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Status</label>
+            {/* Quick Stats Bar */}
+            <div className="grid grid-cols-3 gap-3 bg-gray-900/90 p-3 rounded-2xl border border-gray-800">
+              <div className="text-center px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <div className="text-lg font-extrabold text-rose-400 flex items-center justify-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-live-dot"></span>
+                  {liveCount}
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300">Live</div>
+              </div>
+              <div className="text-center px-3 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+                <div className="text-lg font-extrabold text-cyan-400">{upcomingCount}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Upcoming</div>
+              </div>
+              <div className="text-center px-3 py-2 rounded-xl bg-gray-800 border border-gray-700">
+                <div className="text-lg font-extrabold text-gray-300">{completedCount}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Finished</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab & Filters Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          {/* Main Tabs */}
+          <div className="flex items-center space-x-2 bg-gray-900/90 p-1.5 rounded-2xl border border-gray-800 w-max">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-5 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'all'
+                  ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/20 scale-105'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+              }`}
+            >
+              All Matches ({events.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('followed')}
+              className={`px-5 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all duration-200 ${
+                activeTab === 'followed'
+                  ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/20 scale-105'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+              }`}
+            >
+              Following ({followedEvents.length})
+            </button>
+          </div>
+
+          {/* Sport Filter Pills */}
+          {activeTab === 'all' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setSportFilter('')}
+                className={`px-3.5 py-1.5 rounded-xl font-bold text-xs transition ${
+                  sportFilter === ''
+                    ? 'bg-gray-800 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                    : 'bg-gray-900/80 text-gray-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                All Sports
+              </button>
+              {sports.map((sport) => (
+                <button
+                  key={sport}
+                  onClick={() => setSportFilter(sportFilter === sport ? '' : sport)}
+                  className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs transition ${
+                    sportFilter === sport
+                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
+                      : 'bg-gray-900/80 text-gray-400 hover:text-white border border-gray-800'
+                  }`}
+                >
+                  <span>{sportIcons[sport]}</span>
+                  <span>{sport.charAt(0).toUpperCase() + sport.slice(1)}</span>
+                </button>
+              ))}
+
+              {/* Status Dropdown/Pills */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                className="bg-gray-900/80 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-cyan-500 font-semibold"
               >
-                <option value="">All Status</option>
-                {statuses.map(status => (
-                  <option key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                <option value="">All Statuses</option>
+                {statuses.map(st => (
+                  <option key={st} value={st}>
+                    {st.charAt(0).toUpperCase() + st.slice(1)}
                   </option>
                 ))}
               </select>
             </div>
+          )}
+        </div>
 
-            {/* Clear Filters */}
-           {/* Clear Filters */}
-{(sportFilter || statusFilter) && (
-  <div className="flex items-end">
-    <button
-      onClick={() => {
-        setSportFilter('');
-        setStatusFilter('');
-      }}
-      className="bg-slate-600 hover:bg-slate-500 text-white px-4 py-2 rounded-lg transition"
-    >
-      Clear Filters
-    </button>
-  </div>
-)}
-   </div>
-        )}
-        {/* Events Grid */}
+        {/* Matches Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin">
-              <div className="h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent"></div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+              <div key={i} className="glass-card rounded-3xl p-6 h-56 animate-pulse">
+                <div className="h-4 bg-gray-800 rounded w-1/3 mb-4"></div>
+                <div className="h-16 bg-gray-800/80 rounded-2xl mb-4"></div>
+                <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+              </div>
+            ))}
           </div>
         ) : displayedEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {displayedEvents.map(event => (
               <EventCard
                 key={event._id}
@@ -453,19 +239,31 @@ const Dashboard = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-16">
-            <p className="text-2xl font-bold text-slate-400 mb-2">
-              {activeTab === 'followed' ? 'No followed events' : 'No events found'}
-            </p>
-            <p className="text-slate-500">
+          <div className="glass-card rounded-3xl p-12 text-center border border-gray-800 max-w-lg mx-auto">
+            <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mx-auto mb-4 text-2xl">
+              🔍
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">
+              {activeTab === 'followed' ? 'No followed matches yet' : 'No matches found'}
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">
               {activeTab === 'followed'
-                ? 'Start following events to see them here'
-                : 'Check back later for upcoming events'}
+                ? 'Follow your favorite matches to track live updates here.'
+                : 'Try clearing your sport or status filters.'}
             </p>
+            {(sportFilter || statusFilter) && (
+              <button
+                onClick={() => { setSportFilter(''); setStatusFilter(''); }}
+                className="px-4 py-2 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 rounded-xl text-xs font-bold hover:bg-cyan-500/20 transition"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 };
+
 export default Dashboard;

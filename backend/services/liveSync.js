@@ -1,602 +1,381 @@
-const axios = require('axios');
-const Event = require('../models/event');
-const mongoose = require('mongoose');
+const dns = require("dns");
+try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
+const axios = require("axios");
+const mongoose = require("mongoose");
+const Event = require("../models/event");
 
-const API_BASE_URL = process.env.BASKETBALL;
-const API_KEY = process.env.MAJOR_SPORTS_KEY;
+const BASKETBALL_API = process.env.BASKETBALL || "https://v1.basketball.api-sports.io/";
+const BASKETBALL_KEY = process.env.MAJOR_SPORTS_KEY;
 
-const config = {
+const FOOTBALL_API = "https://api-football-v1.p.rapidapi.com/v3/";
+const FOOTBALL_KEY = process.env.RAPIDAPI_KEY;
+const FOOTBALL_HOST = process.env.RAPIDAPI_HOST;
+
+const footballConfig = {
     headers: {
-        'x-apisports-key': API_KEY
+        "x-rapidapi-key": FOOTBALL_KEY,
+        "x-rapidapi-host": FOOTBALL_HOST
     }
 };
 
-let syncInterval = null;
+const basketballConfig = {
+    headers: {
+        "x-apisports-key": BASKETBALL_KEY
+    }
+};
 
-// Function to sync live games from API to MongoDB
-// const syncLiveGamesFromAPI = async () => {
-//     try {
-//         console.log('🔄 Syncing live games from Basketball API...');
+// Universal Match Status Evaluator
+function getMatchStatus(startTimeDate, apiStatusShort = '', sport = 'football') {
+    const now = new Date();
+    const startTime = new Date(startTimeDate);
 
-//         // Get live games from API
-//         const response = await axios.get(`${API_BASE_URL}games?live=all`, config);
-//         const games = response.data.response || [];
+    if (isNaN(startTime.getTime())) return 'upcoming';
 
-//         if (games.length === 0) {
-//             console.log('📭 No live games found');
-//             return;
-//         }
+    const shortUpper = String(apiStatusShort || '').toUpperCase();
 
-//         console.log(`✅ Found ${games.length} live games`);
+    // 1. Explicit API FT / Finished
+    if (['FT', 'AET', 'PEN', 'POST', 'FINISHED', 'COMPLETED', 'POSTP'].includes(shortUpper)) {
+        return 'completed';
+    }
 
-//         for (const game of games) {
-//             try {
-//                 const eventName = `${game.teams.home.name} vs ${game.teams.away.name}`;
-                
-//                 // Check if event already exists
-//                 let event = await Event.findOne({
-//                     eventName: eventName,
-//                     sport: 'basketball'
-//                 });
+    // 2. Explicit API Live
+    if (['1H', '2H', 'HT', 'ET', 'P', 'LIVE', 'IN', 'Q1', 'Q2', 'Q3', 'Q4', 'OT', 'BT'].includes(shortUpper)) {
+        return 'live';
+    }
 
-//                 if (!event) {
-//                     // Create new event
-//                     event = new Event({
-//                         eventName: eventName,
-//                         sport: 'basketball',
-//                         team1: {
-//                             name: game.teams.home.name,
-//                             score: game.scores.home?.total || game.scores.home || 0
-//                         },
-//                         team2: {
-//                             name: game.teams.away.name,
-//                             score: game.scores.away?.total || game.scores.away || 0
-//                         },
-//                         status: 'live',
-//                         startTime: new Date(game.date),
-//                         venue: game.venue?.name || 'NBA Arena',
-//                         description: `${game.league.name} - Season ${game.season}`,
-//                         createdBy: new mongoose.Types.ObjectId(),
-//                         eventHistory: [
-//                             {
-//                                 timestamp: new Date(),
-//                                 action: 'Match Started',
-//                                 team: game.teams.home.name,
-//                                 details: `Quarter ${game.periods.current || 1} ongoing`
-//                             }
-//                         ]
-//                     });
+    // 3. Time-based calculation relative to current time
+    const timeDiffMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
 
-//                     await event.save();
-//                     console.log(`✅ Created event: ${eventName}`);
-//                 } else {
-//                     // Update existing event with live scores
-//                     const homeScore = game.scores.home?.total || game.scores.home || 0;
-//                     const awayScore = game.scores.away?.total || game.scores.away || 0;
-//                     const scoreChanged = event.team1.score !== homeScore || event.team2.score !== awayScore;
+    const durations = {
+        football: 120,
+        basketball: 130,
+        tennis: 150,
+        cricket: 240
+    };
+    const maxDuration = durations[sport] || 130;
 
-//                     if (scoreChanged) {
-//                         event.team1.score = homeScore;
-//                         event.team2.score = awayScore;
-//                         event.status = 'live';
-//                         event.updatedAt = new Date();
+    if (timeDiffMinutes < 0) {
+        // Start time is in the future
+        return 'upcoming';
+    } else if (timeDiffMinutes >= 0 && timeDiffMinutes <= maxDuration) {
+        // Started within max duration -> LIVE
+        return 'live';
+    } else {
+        // Started over max duration ago -> COMPLETED
+        return 'completed';
+    }
+}
 
-//                         // Add to history if score changed
-//                         event.eventHistory.push({
-//                             timestamp: new Date(),
-//                             action: 'Score Update',
-//                             team: homeScore > awayScore ? game.teams.home.name : game.teams.away.name,
-//                             details: `${homeScore} - ${awayScore} (Quarter ${game.periods.current || 1})`
-//                         });
-
-//                         await event.save();
-//                         console.log(`📊 Updated: ${eventName} - Score: ${homeScore} vs ${awayScore}`);
-//                     }
-//                 }
-//             } catch (error) {
-//                 console.error(`❌ Error processing game:`, error.message);
-//             }
-//         }
-
-//         console.log('✅ Sync completed!');
-//     } catch (error) {
-//         console.error('❌ Error syncing live games:', error.message);
-//     }
-// };
-// Function to sync live games from API to MongoDB
-const syncLiveGamesFromAPI = async () => {
+// 1. REAL FOOTBALL SYNC FROM RAPIDAPI
+async function syncFootballFromRapidAPI() {
     try {
-        console.log("🔄 Syncing live games from Basketball API...");
+        console.log("⚽ Fetching Real Football Matches from RapidAPI...");
+        const today = new Date().toISOString().split('T')[0];
+        const response = await axios.get(`${FOOTBALL_API}fixtures?date=${today}`, footballConfig);
+        const fixtures = response.data.response || [];
 
-        const response = await axios.get(
-            `${API_BASE_URL}games?live=all`,
-            config
-        );
+        console.log(`⚽ RapidAPI returned ${fixtures.length} real football fixtures for ${today}`);
 
+        const systemUserId = new mongoose.Types.ObjectId();
+        const bulkOps = [];
+
+        for (const m of fixtures.slice(0, 50)) {
+            try {
+                const shortStatus = m.fixture?.status?.short || '';
+                const startTime = new Date(m.fixture.date);
+                const computedStatus = getMatchStatus(startTime, shortStatus, 'football');
+
+                const homeScore = typeof m.goals?.home === 'number' ? m.goals.home : 0;
+                const awayScore = typeof m.goals?.away === 'number' ? m.goals.away : 0;
+                const homeName = m.teams?.home?.name || 'Home Team';
+                const awayName = m.teams?.away?.name || 'Away Team';
+
+                bulkOps.push({
+                    updateOne: {
+                        filter: { apiGameId: `rapidapi_football_${m.fixture.id}` },
+                        update: {
+                            $set: {
+                                apiGameId: `rapidapi_football_${m.fixture.id}`,
+                                eventName: `${homeName} vs ${awayName}`,
+                                sport: "football",
+                                team1: { name: homeName, score: homeScore },
+                                team2: { name: awayName, score: awayScore },
+                                status: computedStatus,
+                                startTime: startTime,
+                                venue: m.fixture?.venue?.name || "Stadium",
+                                description: `${m.league?.name || 'Football League'} | ${m.league?.country || 'Global'}`,
+                                createdBy: systemUserId,
+                                updatedAt: new Date()
+                            }
+                        },
+                        upsert: true
+                    }
+                });
+            } catch (err) {}
+        }
+
+        if (bulkOps.length > 0) {
+            await Event.bulkWrite(bulkOps);
+        }
+        console.log(`✅ Synced ${bulkOps.length} Real Football Matches from RapidAPI!`);
+        return bulkOps.length;
+    } catch (err) {
+        console.log("❌ RapidAPI Football Sync error:", err.message);
+        return 0;
+    }
+}
+
+// 2. REAL BASKETBALL SYNC FROM API-SPORTS
+async function syncBasketballFromAPISports() {
+    try {
+        console.log("🏀 Fetching Real Basketball Games from API-Sports...");
+        const today = new Date().toISOString().split('T')[0];
+        const response = await axios.get(`${BASKETBALL_API}games?date=${today}`, basketballConfig);
         const games = response.data.response || [];
 
-        if (games.length === 0) {
-            console.log("📭 No live games found");
-            return;
-        }
+        console.log(`🏀 API-Sports returned ${games.length} real basketball games for ${today}`);
 
-        console.log(`✅ Found ${games.length} live games`);
+        const systemUserId = new mongoose.Types.ObjectId();
+        const bulkOps = [];
 
-        for (const game of games) {
+        for (const g of games.slice(0, 30)) {
             try {
+                const shortStatus = g.status?.short || '';
+                const startTime = new Date(g.date);
+                const computedStatus = getMatchStatus(startTime, shortStatus, 'basketball');
 
-                const eventName = `${game.teams.home.name} vs ${game.teams.away.name}`;
+                const homeScore = typeof g.scores?.home?.total === 'number' ? g.scores.home.total : 0;
+                const awayScore = typeof g.scores?.away?.total === 'number' ? g.scores.away.total : 0;
+                const homeName = g.teams?.home?.name || 'Home Team';
+                const awayName = g.teams?.away?.name || 'Away Team';
 
-                // Find by API Game ID (better than event name)
-                let event = await Event.findOne({
-                    apiGameId: game.id,
-                    sport: "basketball"
-                });
-
-                const homeScore = game.scores.home?.total || game.scores.home || 0;
-                const awayScore = game.scores.away?.total || game.scores.away || 0;
-
-                if (!event) {
-
-                    event = new Event({
-                        apiGameId: game.id,
-                        eventName,
-                        sport: "basketball",
-
-                        team1: {
-                            name: game.teams.home.name,
-                            score: homeScore
-                        },
-
-                        team2: {
-                            name: game.teams.away.name,
-                            score: awayScore
-                        },
-
-                        status: "live",
-
-                        startTime: new Date(game.date),
-
-                        venue: game.arena?.name || game.venue?.name || "NBA Arena",
-
-                        description: `${game.league.name} - ${game.season}`,
-
-                        createdBy: new mongoose.Types.ObjectId(),
-
-                        eventHistory: [
-                            {
-                                timestamp: new Date(),
-                                action: "Match Started",
-                                team: game.teams.home.name,
-                                details: `Quarter ${game.periods?.current || 1}`
+                bulkOps.push({
+                    updateOne: {
+                        filter: { apiGameId: `apisports_basketball_${g.id}` },
+                        update: {
+                            $set: {
+                                apiGameId: `apisports_basketball_${g.id}`,
+                                eventName: `${homeName} vs ${awayName}`,
+                                sport: "basketball",
+                                team1: { name: homeName, score: homeScore },
+                                team2: { name: awayName, score: awayScore },
+                                status: computedStatus,
+                                startTime: startTime,
+                                venue: g.venue || "Basketball Arena",
+                                description: `${g.league?.name || 'Basketball League'} (${g.country?.name || 'Global'})`,
+                                createdBy: systemUserId,
+                                updatedAt: new Date()
                             }
-                        ]
-                    });
-
-                    await event.save();
-
-                    console.log(`✅ Created ${eventName}`);
-
-                } else {
-
-                    event.team1.score = homeScore;
-                    event.team2.score = awayScore;
-                    event.status = "live";
-                    event.updatedAt = new Date();
-
-                    event.eventHistory.push({
-                        timestamp: new Date(),
-                        action: "Score Update",
-                        team: homeScore >= awayScore
-                            ? game.teams.home.name
-                            : game.teams.away.name,
-                        details: `${homeScore}-${awayScore} | Quarter ${game.periods?.current || 1}`
-                    });
-
-                    await event.save();
-
-                    console.log(`📊 Updated ${eventName} : ${homeScore}-${awayScore}`);
-                }
-
-            } catch (err) {
-                console.error("❌ Error processing game:", err.message);
-            }
-        }
-
-        console.log("✅ Live Sync Completed");
-
-    } catch (err) {
-        console.error("❌ Live Sync Error:", err.message);
-    }
-};
-// // Function to sync upcoming and completed games from API to MongoDB
-// const syncUpcomingGamesFromAPI = async () => {
-//     try {
-//         console.log('📅 Syncing upcoming and completed games from Basketball API...');
-
-//         // Popular NBA teams to fetch games for
-//         const teams = [161, 162, 163, 164, 165, 166, 167, 168, 169, 170];
-//         const allGames = [];
-//         const gameIds = new Set(); // To avoid duplicates
-
-//         // Fetch games from multiple seasons and teams
-//         // const seasons = [2023, 2022, 2021];
-//         const currentSeason = new Date().getFullYear() - 1;
-// const seasons = [currentSeason];
-
-//         for (const season of seasons) {
-//             for (const teamId of teams) {
-//                 try {
-//                     const response = await axios.get(`${API_BASE_URL}games?season=${season}&team=${teamId}`, config);
-//                     const games = response.data.response || [];
-                    
-//                     // Only add unique games (by game ID)
-//                     for (const game of games) {
-//                         if (!gameIds.has(game.id)) {
-//                             gameIds.add(game.id);
-//                             allGames.push(game);
-//                         }
-//                     }
-                    
-//                     if (games.length > 0) {
-//                         console.log(`✅ Fetched ${games.length} games for team ${teamId}, season ${season}`);
-//                     }
-//                 } catch (error) {
-//                     // Silent fail for rate limiting
-//                 }
-//             }
-//         }
-
-//         if (allGames.length === 0) {
-//             console.log('📭 No games found');
-//             return;
-//         }
-
-//         console.log(`✅ Total unique games fetched: ${allGames.length}`);
-
-//         for (const game of allGames) {
-//             try {
-//                 const eventName = `${game.teams.home.name} vs ${game.teams.away.name}`;
-//                 const gameDate = new Date(game.date);
-//                 const now = new Date();
-                
-//                 // Determine status
-//                 let eventStatus = 'upcoming';
-//                 if (game.status === 'Finished') {
-//                     eventStatus = 'completed';
-//                 } else if (game.status === 'Live') {
-//                     eventStatus = 'live';
-//                 } else if (gameDate < now) {
-//                     eventStatus = 'completed';
-//                 } else if (gameDate > now) {
-//                     eventStatus = 'upcoming';
-//                 }
-                
-//                 // Check if event already exists by game API ID to avoid duplicates
-//                 let event = await Event.findOne({
-//                     'apiGameId': game.id,
-//                     sport: 'basketball'
-//                 });
-
-//                 if (!event) {
-//                     // Create new event
-//                     const eventHistory = [];
-                    
-//                     // If game is completed, add final score to history
-//                     if (eventStatus === 'completed') {
-//                         eventHistory.push({
-//                             timestamp: gameDate,
-//                             action: 'Match Started',
-//                             team: game.teams.home.name,
-//                             details: 'Match began'
-//                         });
-//                         eventHistory.push({
-//                             timestamp: new Date(gameDate.getTime() + 3600000), // 1 hour later
-//                             action: 'Match Completed',
-//                             team: game.scores.home > game.scores.away ? game.teams.home.name : game.teams.away.name,
-//                             details: `Final Score: ${game.scores.home} - ${game.scores.away}`
-//                         });
-//                     }
-
-//                     event = new Event({
-//                         apiGameId: game.id,
-//                         eventName: eventName,
-//                         sport: 'basketball',
-//                         team1: {
-//                             name: game.teams.home.name,
-//                             score: game.scores.home?.total || 0
-//                         },
-//                         team2: {
-//                             name: game.teams.away.name,
-//                             score: game.scores.away?.total || 0
-//                         },
-//                         status: eventStatus,
-//                         startTime: gameDate,
-//                         venue: game.venue?.name || 'NBA Arena',
-//                         description: `${game.league.name} - Season ${game.season}`,
-//                         createdBy: new mongoose.Types.ObjectId(),
-//                         eventHistory: eventHistory
-//                     });
-
-//                     await event.save();
-//                     console.log(`✅ Created ${eventStatus} event: ${eventName}`);
-//                 } else {
-//                     // Update existing event if status or scores changed
-//                     const homeScore = game.scores.home?.total || game.scores.home || 0;
-//                     const awayScore = game.scores.away?.total || game.scores.away || 0;
-                    
-//                     if (event.status !== eventStatus || event.team1.score !== homeScore || event.team2.score !== awayScore) {
-//                         event.team1.score = homeScore;
-//                         event.team2.score = awayScore;
-//                         event.status = eventStatus;
-//                         await event.save();
-//                         console.log(`📊 Updated event: ${eventName} - Status: ${eventStatus}, Score: ${homeScore}-${awayScore}`);
-//                     }
-//                 }
-//             } catch (error) {
-//                 console.error(`❌ Error processing game:`, error.message);
-//             }
-//         }
-
-//         console.log('✅ Games sync completed!');
-//     } catch (error) {
-//         console.error('❌ Error syncing games:', error.message);
-//     }
-// };
-
-// Function to sync upcoming and completed games from API to MongoDB
-const syncUpcomingGamesFromAPI = async () => {
-    try {
-        console.log("📅 Syncing upcoming and completed games...");
-
-        // Remove old basketball events
-        await Event.deleteMany({ sport: "basketball" });
-
-        // NBA Team IDs
-        const teams = [161, 162, 163, 164, 165, 166, 167, 168, 169, 170];
-
-        const allGames = [];
-        const gameIds = new Set();
-
-        // Current API season
-        const currentSeason = 2025;
-
-        for (const teamId of teams) {
-            try {
-
-                const response = await axios.get(
-                    `${API_BASE_URL}games?season=${currentSeason}&team=${teamId}`,
-                    config
-                );
-
-                const games = response.data.response || [];
-
-                for (const game of games) {
-
-                    if (!gameIds.has(game.id)) {
-                        gameIds.add(game.id);
-                        allGames.push(game);
+                        },
+                        upsert: true
                     }
-
-                }
-
-                console.log(
-                    `✅ Team ${teamId}: ${games.length} games`
-                );
-
-            } catch (err) {
-                console.log(`⚠️ Team ${teamId} skipped`);
-            }
+                });
+            } catch (err) {}
         }
 
-        console.log(`✅ Total Games: ${allGames.length}`);
-
-        const now = new Date();
-
-        for (const game of allGames) {
-
-            const gameDate = new Date(game.date);
-
-            let status = "upcoming";
-
-            if (game.status?.long === "Finished") {
-                status = "completed";
-            }
-            else if (
-                game.status?.short === "Q1" ||
-                game.status?.short === "Q2" ||
-                game.status?.short === "Q3" ||
-                game.status?.short === "Q4" ||
-                game.status?.short === "HT" ||
-                game.status?.short === "OT"
-            ) {
-                status = "live";
-            }
-            else if (gameDate < now) {
-                status = "completed";
-            }
-
-            const homeScore =
-                game.scores.home?.total ||
-                game.scores.home ||
-                0;
-
-            const awayScore =
-                game.scores.away?.total ||
-                game.scores.away ||
-                0;
-
-            await Event.findOneAndUpdate(
-
-                {
-                    apiGameId: game.id
-                },
-
-                {
-
-                    apiGameId: game.id,
-
-                    eventName:
-                        `${game.teams.home.name} vs ${game.teams.away.name}`,
-
-                    sport: "basketball",
-
-                    team1: {
-                        name: game.teams.home.name,
-                        score: homeScore
-                    },
-
-                    team2: {
-                        name: game.teams.away.name,
-                        score: awayScore
-                    },
-
-                    status,
-
-                    startTime: gameDate,
-
-                    venue:
-                        game.arena?.name ||
-                        game.venue?.name ||
-                        "NBA Arena",
-
-                    description:
-                        `${game.league.name} - Season ${game.season}`,
-
-                    createdBy: new mongoose.Types.ObjectId()
-
-                },
-
-                {
-                    upsert: true,
-                    new: true
-                }
-
-            );
-
+        if (bulkOps.length > 0) {
+            await Event.bulkWrite(bulkOps);
         }
-
-        console.log("✅ Upcoming Sync Completed");
-
+        console.log(`✅ Synced ${bulkOps.length} Real Basketball Games from API-Sports!`);
+        return bulkOps.length;
     } catch (err) {
-
-        console.error("❌ Upcoming Sync Error:", err.message);
-
+        console.log("❌ Basketball Sync error:", err.message);
+        return 0;
     }
-};
+}
 
-// Start auto-sync on server startup
-// const startLiveSync = () => {
-//     console.log('🚀 Starting live game sync service...');
-
-//     // Try to sync live games to catch real-time updates
-//     syncLiveGamesFromAPI();
-
-//     // Then sync live games every 30 seconds for live updates
-//     syncInterval = setInterval(() => {
-//         syncLiveGamesFromAPI();
-//     }, 30000); // 30 seconds
-
-//     console.log('✅ Live sync service started (live updates every 30 seconds)');
-//     console.log('📝 Note: Using seeded game data. Run "node seedRealGames.js" to refresh data.');
-// };
-
-// const startLiveSync = async () => {
-//     console.log("🚀 Starting live sync...");
-
-//     // Remove old basketball events
-//     await Event.deleteMany({ sport: "basketball" });
-
-//     // Fetch latest upcoming/completed games
-//     await syncUpcomingGamesFromAPI();
-
-//     // Fetch live games
-//     await syncLiveGamesFromAPI();
-
-//     // Live updates every 30 seconds
-//     syncInterval = setInterval(syncLiveGamesFromAPI, 30000);
-
-//     // Refresh schedule every hour
-//     setInterval(syncUpcomingGamesFromAPI, 60 * 60 * 1000);
-
-//     console.log("✅ Live sync started");
-// };
-
-// // Stop sync
-// const stopLiveSync = () => {
-//     if (syncInterval) {
-//         clearInterval(syncInterval);
-//         console.log('⏹️ Live sync service stopped');
-//     }
-// };
-
-// module.exports = {
-//     startLiveSync,
-//     stopLiveSync,
-//     syncLiveGamesFromAPI,
-//     syncUpcomingGamesFromAPI
-// };
-
-// Start auto-sync on server startup
-const startLiveSync = async () => {
-    console.log("🚀 Starting Live Sync Service...");
-
+// 3. REAL TENNIS SYNC FROM ESPN API
+async function syncTennisFromESPN() {
     try {
+        console.log("🎾 Fetching Real Tennis Matches from ESPN...");
+        const response = await axios.get("https://site.api.espn.com/apis/site/v2/sports/tennis/all/scoreboard");
+        const events = response.data.events || [];
 
-        // Clear previous basketball events
-        await Event.deleteMany({ sport: "basketball" });
-        console.log("🗑️ Old basketball events removed");
+        const systemUserId = new mongoose.Types.ObjectId();
+        const bulkOps = [];
 
-        // Load latest upcoming/completed matches
-        await syncUpcomingGamesFromAPI();
+        for (const ev of events) {
+            const groupings = ev.groupings || [];
+            for (const g of groupings) {
+                const comps = g.competitions || [];
+                for (const c of comps.slice(0, 10)) {
+                    try {
+                        const noteText = c.notes && c.notes[0] ? c.notes[0].text : '';
+                        if (!noteText && (!c.competitors || c.competitors.length < 2)) continue;
 
-        // Load current live matches
-        await syncLiveGamesFromAPI();
+                        let team1Name = "Player 1";
+                        let team2Name = "Player 2";
+                        let team1Score = 0;
+                        let team2Score = 0;
 
-        // Update live scores every 30 seconds
-        syncInterval = setInterval(async () => {
-            try {
-                await syncLiveGamesFromAPI();
-            } catch (err) {
-                console.error("❌ Live Sync Interval Error:", err.message);
+                        if (c.competitors && c.competitors.length >= 2) {
+                            team1Name = c.competitors[0].athlete?.displayName || c.competitors[0].team?.displayName || "";
+                            team2Name = c.competitors[1].athlete?.displayName || c.competitors[1].team?.displayName || "";
+                            team1Score = parseInt(c.competitors[0].score || 0, 10);
+                            team2Score = parseInt(c.competitors[1].score || 0, 10);
+                        } else if (noteText) {
+                            const parts = noteText.split(/\s+bt\s+|\s+leads\s+|\s+v\s+/i);
+                            if (parts.length >= 2) {
+                                team1Name = parts[0].trim();
+                                team2Name = parts[1].trim();
+                            }
+                        }
+
+                        // Skip if names are missing or generic placeholders
+                        if (!team1Name || !team2Name || team1Name === "Player 1" || team2Name === "Player 2" || team1Name === team2Name) {
+                            continue;
+                        }
+
+                        const startTime = new Date(c.date || Date.now());
+                        const shortState = c.status?.type?.state || '';
+                        const computedStatus = getMatchStatus(startTime, shortState, 'tennis');
+
+                        const gameId = c.id || `${g.grouping?.id || 't'}_${Math.random()}`;
+
+                        bulkOps.push({
+                            updateOne: {
+                                filter: { apiGameId: `espn_tennis_${gameId}` },
+                                update: {
+                                    $set: {
+                                        apiGameId: `espn_tennis_${gameId}`,
+                                        eventName: `${team1Name} vs ${team2Name}`,
+                                        sport: "tennis",
+                                        team1: { name: team1Name, score: team1Score },
+                                        team2: { name: team2Name, score: team2Score },
+                                        status: computedStatus,
+                                        startTime: startTime,
+                                        venue: c.venue?.fullName || "Tennis Court",
+                                        description: `${g.grouping?.displayName || 'Tennis Tournament'} - ${noteText || 'Live Match'}`,
+                                        createdBy: systemUserId,
+                                        updatedAt: new Date()
+                                    }
+                                },
+                                upsert: true
+                            }
+                        });
+                    } catch (e) {}
+                }
             }
-        }, 30000);
+        }
 
-        // Refresh fixtures every hour
-        setInterval(async () => {
-            try {
-                console.log("🔄 Refreshing schedule...");
-                await syncUpcomingGamesFromAPI();
-            } catch (err) {
-                console.error("❌ Schedule Refresh Error:", err.message);
-            }
-        }, 60 * 60 * 1000);
-
-        console.log("✅ Live Sync Service Started");
-        console.log("⚡ Live scores refresh every 30 seconds");
-        console.log("📅 Schedule refreshes every hour");
-
+        if (bulkOps.length > 0) {
+            await Event.bulkWrite(bulkOps);
+        }
+        console.log(`✅ Synced ${bulkOps.length} Real Tennis Matches from ESPN!`);
+        return bulkOps.length;
     } catch (err) {
-
-        console.error("❌ Failed to start Live Sync:", err.message);
-
+        console.log("❌ ESPN Tennis Sync error:", err.message);
+        return 0;
     }
-};
+}
 
-// Stop sync service
-const stopLiveSync = () => {
+// 4. REAL CRICKET SYNC FROM ESPNCRICINFO RSS
+async function syncCricketFromRSS() {
+    try {
+        console.log("🏏 Fetching Real Cricket Matches from Cricinfo RSS...");
+        const response = await axios.get("https://static.cricinfo.com/rss/livescores.xml");
+        const xmlText = response.data || "";
+        const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
 
-    if (syncInterval) {
-        clearInterval(syncInterval);
-        syncInterval = null;
-        console.log("⏹️ Live Sync Service Stopped");
+        const systemUserId = new mongoose.Types.ObjectId();
+        const bulkOps = [];
+
+        for (const item of items) {
+            try {
+                const titleMatch = item.match(/<title>(.*?)<\/title>/);
+                const guidMatch = item.match(/<guid>(.*?)<\/guid>/);
+                if (!titleMatch) continue;
+
+                const rawTitle = titleMatch[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+                const parts = rawTitle.split(/\s+v\s+|\s+vs\s+/i);
+                if (parts.length < 2) continue;
+
+                const team1Raw = parts[0].trim();
+                const team2Raw = parts[1].trim();
+
+                const parseTeam = (str) => {
+                    const scoreMatch = str.match(/(\d+\/\d+[\d\s\/\&\*]*)/);
+                    if (scoreMatch) {
+                        const scoreStr = scoreMatch[1].trim();
+                        const name = str.replace(scoreMatch[0], '').replace(/\s+\*/, '').replace(/\s+&\s+$/, '').trim();
+                        return { name: name || str, scoreStr };
+                    }
+                    return { name: str.trim(), scoreStr: "0" };
+                };
+
+                const t1 = parseTeam(team1Raw);
+                const t2 = parseTeam(team2Raw);
+
+                const isLive = rawTitle.includes('*');
+                const isScheduled = !rawTitle.includes('/') && !isLive;
+                const status = isLive ? 'live' : isScheduled ? 'upcoming' : 'completed';
+                const guid = guidMatch ? guidMatch[1] : rawTitle;
+
+                bulkOps.push({
+                    updateOne: {
+                        filter: { apiGameId: `cricinfo_cricket_${encodeURIComponent(guid)}` },
+                        update: {
+                            $set: {
+                                apiGameId: `cricinfo_cricket_${encodeURIComponent(guid)}`,
+                                eventName: `${t1.name} vs ${t2.name}`,
+                                sport: "cricket",
+                                team1: { name: t1.name, score: t1.scoreStr },
+                                team2: { name: t2.name, score: t2.scoreStr },
+                                status: status,
+                                startTime: new Date(),
+                                venue: "International Cricket Stadium",
+                                description: `Match Score: ${rawTitle}`,
+                                createdBy: systemUserId,
+                                updatedAt: new Date()
+                            }
+                        },
+                        upsert: true
+                    }
+                });
+            } catch (e) {}
+        }
+
+        if (bulkOps.length > 0) {
+            await Event.bulkWrite(bulkOps);
+        }
+        console.log(`✅ Synced ${bulkOps.length} Real Cricket Matches from Cricinfo!`);
+        return bulkOps.length;
+    } catch (err) {
+        console.log("❌ Cricket Sync error:", err.message);
+        return 0;
     }
+}
 
+// 5. MASTER ALL REAL DATA SYNC
+async function syncAllRealData() {
+    console.log("⚡ Starting High-Speed Bulk Real Data Sync Across All 4 Sports...");
+
+    const fb = await syncFootballFromRapidAPI();
+    const bb = await syncBasketballFromAPISports();
+    const tn = await syncTennisFromESPN();
+    const ck = await syncCricketFromRSS();
+
+    console.log(`🎉 HIGH-SPEED REAL DATA SYNC COMPLETE: ${fb} Football, ${bb} Basketball, ${tn} Tennis, ${ck} Cricket matches!`);
+}
+
+const startLiveSync = () => {
+    console.log("🚀 Multi-Sport Live Sync Engine Initialized");
+    
+    // Immediate sync on startup
+    syncAllRealData();
+
+    // Periodic re-sync every 2 minutes for live updates
+    setInterval(() => {
+        syncAllRealData();
+    }, 120000);
 };
 
 module.exports = {
     startLiveSync,
-    stopLiveSync,
-    syncLiveGamesFromAPI,
-    syncUpcomingGamesFromAPI
+    syncAllRealData,
+    syncFootballFromRapidAPI,
+    syncBasketballFromAPISports,
+    syncTennisFromESPN,
+    syncCricketFromRSS,
+    getMatchStatus
 };

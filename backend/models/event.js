@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const eventSchema = new mongoose.Schema({
     apiGameId: {
-        type: Number,
+        type: String,
         unique: true,
         sparse: true
     },
@@ -17,11 +17,11 @@ const eventSchema = new mongoose.Schema({
     },
     team1: {
         name: String,
-        score: { type: Number, default: 0 }
+        score: { type: mongoose.Schema.Types.Mixed, default: 0 }
     },
     team2: {
         name: String,
-        score: { type: Number, default: 0 }
+        score: { type: mongoose.Schema.Types.Mixed, default: 0 }
     },
     status: {
         type: String,

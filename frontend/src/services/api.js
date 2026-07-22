@@ -46,4 +46,16 @@ export const eventAPI = {
   isFollowingEvent: (eventId) => api.get(`/events/${eventId}/is-following`)
 };
 
+// Search APIs
+export const searchAPI = {
+  searchEvents: (params) => api.get('/search', { params }),
+  getAllSports: () => api.get('/search/sports/all'),
+  getAllTeams: () => api.get('/search/teams/all')
+};
+
+// Standings APIs
+export const standingsAPI = {
+  getStandings: (sport) => api.get(`/standings/${sport}`)
+};
+
 export default api;

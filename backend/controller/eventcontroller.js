@@ -35,22 +35,40 @@ const createEvent = async (req, res) => {
     }
 };
 
+const { getMatchStatus } = require('../services/liveSync');
+
 // Get all events
 const getAllEvents = async (req, res) => {
     try {
         const { status, sport } = req.query;
         let filter = {};
 
-        if (status) filter.status = status;
         if (sport) filter.sport = sport;
+        filter['team1.name'] = { $nin: ['Player 1', 'Home Team'] };
+        filter['eventName'] = { $ne: 'Player 1 vs Player 2' };
 
         const events = await Event.find(filter)
             .populate('createdBy', 'userName')
             .sort({ startTime: -1 });
 
+        // Auto-update match status dynamically based on current time
+        const updatedEvents = events.map(event => {
+            const actualStatus = getMatchStatus(event.startTime, '', event.sport);
+            if (event.status !== actualStatus) {
+                event.status = actualStatus;
+                event.save().catch(() => {});
+            }
+            return event;
+        });
+
+        // Filter by status if query parameter provided
+        const filteredEvents = status 
+            ? updatedEvents.filter(e => e.status === status)
+            : updatedEvents;
+
         res.status(200).json({
             message: "Events fetched successfully",
-            events
+            events: filteredEvents
         });
     } catch (err) {
         console.log(err);
@@ -68,6 +86,12 @@ const getEventById = async (req, res) => {
 
         if (!event) {
             return res.status(404).json({ error: "Event not found" });
+        }
+
+        const actualStatus = getMatchStatus(event.startTime, '', event.sport);
+        if (event.status !== actualStatus) {
+            event.status = actualStatus;
+            await event.save().catch(() => {});
         }
 
         res.status(200).json({

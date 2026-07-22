@@ -7,7 +7,7 @@ const Authmiddleware = require('../middleware/auth');
 router.post('/favorites/add/:eventId', Authmiddleware, async (req, res) => {
     try {
         const { eventId } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
         const user = await User.findByIdAndUpdate(
             userId,
@@ -25,7 +25,7 @@ router.post('/favorites/add/:eventId', Authmiddleware, async (req, res) => {
 router.post('/favorites/remove/:eventId', Authmiddleware, async (req, res) => {
     try {
         const { eventId } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
         const user = await User.findByIdAndUpdate(
             userId,
@@ -42,7 +42,7 @@ router.post('/favorites/remove/:eventId', Authmiddleware, async (req, res) => {
 // Get user favorites
 router.get('/favorites', Authmiddleware, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
         const user = await User.findById(userId).populate('favorites');
         
         res.json({ 
@@ -58,7 +58,7 @@ router.get('/favorites', Authmiddleware, async (req, res) => {
 router.post('/teams/favorite/:team', Authmiddleware, async (req, res) => {
     try {
         const { team } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
 
         const user = await User.findByIdAndUpdate(
             userId,
@@ -75,7 +75,7 @@ router.post('/teams/favorite/:team', Authmiddleware, async (req, res) => {
 // Get user favorite teams
 router.get('/teams/favorites', Authmiddleware, async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId || req.user.id;
         const user = await User.findById(userId);
         
         res.json({ 

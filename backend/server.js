@@ -1,3 +1,5 @@
+const dns = require('dns');
+try { dns.setServers(['8.8.8.8', '1.1.1.1']); } catch (e) {}
 const dotenv = require('dotenv');
 dotenv.config();
 const express = require('express');
@@ -71,6 +73,8 @@ mongoose.connect(MONGO_URL)
       console.log("DB Connection Error:", err);
   });
 
+const botRoutes = require('./routes/bot_routes.js');
+
 app.use('/api', authRoutes); 
 app.use('/api/basketball', basketRoutes);
 app.use('/api/events', eventRoutes);
@@ -78,4 +82,5 @@ app.use('/api/live', liveRoutes);
 app.use('/api/standings', standingsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/user', preferencesRoutes);
+app.use('/api/bot', botRoutes);
 
