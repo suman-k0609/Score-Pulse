@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FiX, FiSend, FiZap, FiTrash2, FiActivity } from 'react-icons/fi';
-import axios from 'axios';
+import api from '../services/api';
 
 const SportsBot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +50,7 @@ const SportsBot = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/bot/chat', {
+      const response = await api.post('/bot/chat', {
         message: text
       });
 
